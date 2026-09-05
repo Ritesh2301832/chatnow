@@ -372,10 +372,15 @@ document.getElementById('startBtn').onclick=function(){
 
 function connectWS(name,gender,orient,subPref){
   var proto=location.protocol==='https:'?'wss:':'ws:';
-  ws=new WebSocket(proto+'//'+location.host+'/ws/chat');
-  ws.onopen=function(){ws.send(JSON.stringify({type:'register',name:(currentUser.display_name||name||'Stranger'),gender:gender,orientation:orient,sub_pref:subPref||'any',country:myLoc.country,lang:myLoc.lang,lat:myLoc.lat,lon:myLoc.lon,city:myLoc.city,username:currentUser.username}));};
-  ws.onmessage=function(e){handleMsg(JSON.parse(e.data));};
-  ws.onclose=function(){if(!document.getElementById('chatScreen').classList.contains('hidden'))addSys('Connection lost.');};
+  var socket=new WebSocket(proto+'//'+location.host+'/ws/chat');
+  socket.onopen=function(){
+    if(ws!==null && ws.readyState===WebSocket.OPEN) return;
+    ws=socket;
+    socket.send(JSON.stringify({type:'register',name:(currentUser.display_name||name||'Stranger'),gender:gender,orientation:orient,sub_pref:subPref||'any',country:myLoc.country,lang:myLoc.lang,lat:myLoc.lat,lon:myLoc.lon,city:myLoc.city,username:currentUser.username}));
+  };
+  socket.onmessage=function(e){handleMsg(JSON.parse(e.data));};
+  socket.onclose=function(){if(ws===socket) ws=null; if(!document.getElementById('chatScreen').classList.contains('hidden'))addSys('Connection lost.');};
+  socket.onerror=function(){ if(ws===socket) ws=null; };
 }
 
 function handleMsg(msg){

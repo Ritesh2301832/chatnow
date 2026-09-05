@@ -851,6 +851,145 @@ body{
     }
 }
 </style>
+<style>
+
+/* Stranger Talk / Nagomi visual layer — functionality unchanged */
+@import url('https://fonts.googleapis.com/css2?family=Comfortaa:wght@400;500;600;700&family=Quicksand:wght@400;500;600;700&display=swap');
+
+:root{
+  --nagomi-ink:#3f3b56;
+  --nagomi-muted:#817c98;
+  --nagomi-lav:#a99bd4;
+  --nagomi-lav-dark:#8f80c4;
+  --nagomi-cream:#fffaf2;
+  --nagomi-glass:rgba(255,250,244,.78);
+  --nagomi-line:rgba(92,78,123,.14);
+}
+
+html,body{
+  font-family:'Quicksand',sans-serif !important;
+}
+
+body{
+  background:#d9d0ec url('/dusk-sky.png') center/cover fixed no-repeat !important;
+  color:var(--nagomi-ink) !important;
+  position:relative;
+}
+
+body::before{
+  content:'';
+  position:fixed; inset:0; z-index:0; pointer-events:none;
+  background:linear-gradient(180deg,rgba(65,55,96,.08),rgba(255,247,236,.30));
+}
+
+body::after{
+  content:'✦  ·  ✧  ·  ✦';
+  position:fixed; top:7%; left:8%; z-index:0; pointer-events:none;
+  color:rgba(255,255,255,.65); font-size:1.1rem; letter-spacing:22px;
+  animation:nagomiFloat 7s ease-in-out infinite;
+}
+
+.screen{z-index:1 !important;}
+
+.auth-card,.lobby-card{
+  background:var(--nagomi-glass) !important;
+  border:1px solid rgba(255,255,255,.72) !important;
+  box-shadow:0 24px 70px rgba(66,52,99,.20), inset 0 1px 0 rgba(255,255,255,.7) !important;
+  backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px);
+  color:var(--nagomi-ink) !important;
+  animation:nagomiRise .65s ease both;
+}
+
+.auth-card h1,.lobby-card h1{
+  font-family:'Comfortaa',sans-serif !important;
+  color:#4b4565 !important;
+}
+
+.auth-card .sub,.lobby-card .sub,.field label,.looking-section label,.sub-pref-section label,.gender-card .desc{
+  color:var(--nagomi-muted) !important;
+}
+
+.auth-tabs{
+  background:rgba(255,255,255,.38) !important;
+  border-color:var(--nagomi-line) !important;
+}
+
+.auth-tab{color:#8c86a0 !important;}
+.auth-tab.active{
+  background:linear-gradient(135deg,#a99bd4,#9181c3) !important;
+  color:#fff !important;
+}
+
+.field input{
+  background:rgba(255,255,255,.60) !important;
+  border-color:var(--nagomi-line) !important;
+  color:var(--nagomi-ink) !important;
+}
+.field input:focus{border-color:#a99bd4 !important; box-shadow:0 0 0 3px rgba(169,155,212,.14);}
+
+.google-btn{
+  background:rgba(255,255,255,.86) !important;
+  border:1px solid rgba(92,78,123,.10) !important;
+  color:#4d4862 !important;
+  box-shadow:0 8px 20px rgba(70,57,100,.08);
+}
+
+.btn{
+  background:linear-gradient(135deg,#a99bd4,#8f80c4) !important;
+  box-shadow:0 10px 22px rgba(143,128,196,.25);
+}
+
+.gender-card,.look-chip,.pref-chip{
+  background:rgba(255,255,255,.45) !important;
+  border-color:rgba(92,78,123,.13) !important;
+  color:#68627d !important;
+}
+.gender-card:hover,.look-chip:hover,.pref-chip:hover{
+  border-color:rgba(143,128,196,.45) !important; transform:translateY(-2px);
+}
+.gender-card.selected,.look-chip.selected,.pref-chip.selected{
+  background:rgba(169,155,212,.18) !important;
+  border-color:#9c8dcb !important; color:#7564a7 !important;
+}
+
+.loc-pill{
+  background:rgba(255,255,255,.48) !important;
+  border-color:rgba(143,128,196,.25) !important; color:#7564a7 !important;
+}
+
+.seo-content{
+  background:rgba(255,250,244,.62) !important;
+  border-color:rgba(92,78,123,.12) !important;
+  color:#68627d !important;
+  box-shadow:0 15px 35px rgba(70,57,100,.10);
+}
+.seo-content h2{color:#4b4565 !important;}
+.seo-content p{color:#756f87 !important;}
+
+.chat-header{
+  background:rgba(255,250,244,.78) !important;
+  border-bottom-color:rgba(92,78,123,.12) !important;
+  backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px);
+  color:var(--nagomi-ink) !important;
+}
+.header-name{color:#4b4565 !important;}
+.header-status,.typing-indicator{color:#817c98 !important;}
+.header-actions button{color:#5d5772 !important;}
+
+.story-ring{background:linear-gradient(135deg,#cbbfe7,#9181c3) !important; box-shadow:0 5px 16px rgba(100,82,145,.20);}
+.story-ring .av{
+  background:#f7f0e8 url('/stranger-avatar.png') center/cover no-repeat !important;
+  border-color:#fffaf2 !important; color:transparent !important;
+}
+
+@keyframes nagomiRise{from{opacity:0;transform:translateY(18px) scale(.985)}to{opacity:1;transform:none}}
+@keyframes nagomiFloat{0%,100%{transform:translateY(0);opacity:.55}50%{transform:translateY(-10px);opacity:.9}}
+
+@media(max-width:600px){
+  body::after{left:4%;font-size:.85rem;letter-spacing:12px;}
+  .auth-card,.lobby-card{border-radius:28px !important;}
+}
+</style>
 </head>
 
 <body>

@@ -216,7 +216,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 })
                 await websocket.send_text(json.dumps({
                     "type": "registered",
-                    "user": user_info[websocket]
+                    "user": _safe_info(websocket)
                 }))
 
             elif msg_type == "find":

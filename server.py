@@ -40,7 +40,12 @@ waiting_users = {}
 active_chats = {}
 user_info = {}
 user_id_counter = [0]
+match_lock = asyncio.Lock()
 otp_store = {}  # email -> {"otp": "123456", "verified": False, "user_data": {}}
+
+@app.get("/health")
+async def health():
+    return JSONResponse({"ok": True})
 
 @app.get("/", response_class=HTMLResponse)
 async def index():
@@ -187,7 +192,7 @@ async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
     user_id_counter[0] += 1
     uid = user_id_counter[0]
-    user_info[websocket] = {"id": uid}
+    user_info[websocket] = {"id": uid, "blocked": set()}
     active_chats[websocket] = None
     try:
         while True:
@@ -204,9 +209,10 @@ async def websocket_endpoint(websocket: WebSocket):
                     "lat": msg.get("lat", 0),
                     "lon": msg.get("lon", 0),
                     "city": msg.get("city", "Unknown"),
-                    "name": msg.get("name", f"User{uid}"),
+                    "name": (msg.get("name") or f"Stranger_{uid:04d}"),
                     "sub_pref": msg.get("sub_pref", "any"),
                     "username": msg.get("username", ""),
+                    "blocked": user_info[websocket].get("blocked", set()),
                 })
                 await websocket.send_text(json.dumps({
                     "type": "registered",
@@ -258,12 +264,51 @@ async def websocket_endpoint(websocket: WebSocket):
                 if partner:
                     await partner.send_text(json.dumps({"type": "stop_typing"}))
 
+            elif msg_type == "report":
+                partner = active_chats.get(websocket)
+                if partner:
+                    reports = user_info[partner].setdefault("reports", [])
+                    reports.append({
+                        "from": user_info[websocket].get("name", "Stranger"),
+                        "reason": str(msg.get("reason", "User report"))[:200],
+                    })
+                    await websocket.send_text(json.dumps({"type": "reported"}))
+
+            elif msg_type == "block":
+                partner = active_chats.get(websocket)
+                if partner:
+                    user_info[websocket].setdefault("blocked", set()).add(user_info[partner].get("name", "Stranger"))
+                    active_chats[partner] = None
+                    try:
+                        await partner.send_text(json.dumps({
+                            "type": "partner_left",
+                            "message": "Stranger left the chat."
+                        }))
+                    except Exception:
+                        pass
+                    active_chats[websocket] = None
+                    await websocket.send_text(json.dumps({"type": "blocked"}))
+
             elif msg_type == "disconnect":
                 await disconnect_user(websocket)
                 break
 
             elif msg_type == "next":
-                await disconnect_user(websocket)
+                # Leave the current partner, but keep this user's identity/preferences
+                # so they can immediately search for the next stranger.
+                partner = active_chats.get(websocket)
+                if partner:
+                    active_chats[partner] = None
+                    try:
+                        await partner.send_text(json.dumps({
+                            "type": "partner_left",
+                            "message": "Stranger left the chat."
+                        }))
+                    except Exception:
+                        pass
+                active_chats[websocket] = None
+                waiting_users.pop(websocket, None)
+
                 partner = await find_match(websocket)
                 if partner:
                     active_chats[websocket] = partner
@@ -298,83 +343,48 @@ def _safe_info(ws):
     }
 
 async def find_match(ws):
+    """Strictly match male users with female users, and vice versa."""
     me = user_info.get(ws, {})
-    my_gender = me.get("gender", "any")
-    my_orientation = me.get("orientation", "any")
-    candidates = list(waiting_users.keys())
-    random.shuffle(candidates)
-    for candidate in candidates:
-        if candidate == ws:
-            continue
-        them = user_info.get(candidate, {})
-        their_gender = them.get("gender", "any")
-        their_orientation = them.get("orientation", "any")
-        my_sp = me.get("sub_pref", "any")
-        their_sp = them.get("sub_pref", "any")
-        if is_compatible(my_gender, my_orientation, their_gender, their_orientation, my_sp, their_sp):
-            del waiting_users[candidate]
+    my_gender = me.get("gender", "").lower()
+    if my_gender not in {"male", "female"}:
+        return None
+
+    async with match_lock:
+        # Remove stale/self entries before searching.
+        waiting_users.pop(ws, None)
+        candidates = list(waiting_users.keys())
+        random.shuffle(candidates)
+
+        for candidate in candidates:
+            if candidate == ws or candidate not in user_info:
+                waiting_users.pop(candidate, None)
+                continue
+
+            them = user_info.get(candidate, {})
+            their_gender = str(them.get("gender", "")).lower()
+
+            # STRICT RULE:
+            # male <-> female only. No same-gender or "any" matches.
+            if {my_gender, their_gender} != {"male", "female"}:
+                continue
+
+            if them.get("name", "") in me.get("blocked", set()):
+                continue
+            if me.get("name", "") in them.get("blocked", set()):
+                continue
+
+            waiting_users.pop(candidate, None)
             return candidate
+
     return None
 
-def is_compatible(g1, o1, g2, o2, sp1="any", sp2="any"):
-    """
-    Strict matching rules:
-    - male + straight -> must match female + straight
-    - female + straight -> must match male + straight
-    - lesbian -> must match lesbian (both female)
-    - gay -> must match gay (both male), with sub-preference
-    - bisexual -> matches both male and female
-    - any -> matches anyone
-    """
-    # "any" orientation matches anyone
-    if o1 == "any" or o2 == "any":
-        return True
-    # Straight: male must get female, female must get male
-    if o1 == "straight" and o2 == "straight":
-        if g1 == "male" and g2 == "female":
-            return True
-        if g1 == "female" and g2 == "male":
-            return True
-        return False
-    # Lesbian: both must be female, with sub-preference
-    if o1 == "lesbian" and o2 == "lesbian":
-        if g1 != "female" or g2 != "female":
-            return False
-        # Sub-preference matching
-        if sp1 == "any" or sp2 == "any":
-            return True
-        # femme wants butch, butch wants femme = perfect
-        if sp1 == "femme" and sp2 == "butch":
-            return True
-        if sp1 == "butch" and sp2 == "femme":
-            return True
-        # stemme works with anyone
-        if sp1 == "stemme" or sp2 == "stemme":
-            return True
-        # same sub-pref also works
-        return sp1 == sp2
-    # Gay: both must be male, check sub-preferences
-    if o1 == "gay" and o2 == "gay":
-        if g1 != "male" or g2 != "male":
-            return False
-        # Sub-preference matching
-        if sp1 == "any" or sp2 == "any":
-            return True
-        # masculine wants feminine, feminine wants masculine = perfect
-        if sp1 == "masculine" and sp2 == "feminine":
-            return True
-        if sp1 == "feminine" and sp2 == "masculine":
-            return True
-        # both matches anything
-        if sp1 == "both" or sp2 == "both":
-            return True
-        # same sub-pref also works
-        return sp1 == sp2
-    # Bisexual: matches any gender
-    if o1 == "bisexual" or o2 == "bisexual":
-        return True
-    return True
 
+def is_compatible(g1, o1, g2, o2, sp1="any", sp2="any"):
+    """Single strict compatibility rule used by matchmaking."""
+    return {
+        str(g1).lower(),
+        str(g2).lower(),
+    } == {"male", "female"}
 
 
 async def disconnect_user(ws):
@@ -382,7 +392,7 @@ async def disconnect_user(ws):
     if partner and partner in active_chats:
         active_chats[partner] = None
         try:
-            await partner.send_text(json.dumps({"type": "partner_left"}))
+            await partner.send_text(json.dumps({"type": "partner_left", "message": "Stranger left the chat."}))
         except Exception:
             pass
     active_chats.pop(ws, None)
